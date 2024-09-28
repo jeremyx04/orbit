@@ -1,9 +1,15 @@
 import './App.css';
+import { useWebRTC } from './hooks/useWebRTC';
 
-function App() {
+const App = () => {
+  useWebRTC({
+    onMessageReceived: (message) => {
+      console.log(`Received message: ${message}`);
+    }
+  });
   return (
     <div className="App">
-      Signal
+      signal
     </div>
   );
 }
