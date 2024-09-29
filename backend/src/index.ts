@@ -21,9 +21,9 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
-  
-  socket.emit('ping');
 
+  socket.emit('ping');
+  socket.emit('offer');
   socket.on('disconnect', () => {
     console.log(`${socket.id} disconnected`);
   });

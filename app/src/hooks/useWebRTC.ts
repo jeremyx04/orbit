@@ -8,6 +8,7 @@ type Props = {
 }
 
 export const useWebRTC = ({ onMessageReceived } : Props) => {
+  const socketRef = useRef<Socket | undefined>(undefined);
   const peerConnectionRef = useRef<PeerConnection | undefined>(undefined);
 
   const sendMessage = useCallback((message: string) => {
@@ -20,9 +21,11 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   }, []);
 
   useEffect(() => {
-    if(!peerConnectionRef.current) {
-      const signalingServer = io(BACKEND_URL); 
-      peerConnectionRef.current = new PeerConnection(signalingServer);
+    if(!socketRef.current) {
+      socketRef.current = io(BACKEND_URL);
+      socketRef.current.on('offer', (event) => {
+        peerConnectionRef.current = new PeerConnection(socketRef.current!);
+      });
     }
 
     return () => {
