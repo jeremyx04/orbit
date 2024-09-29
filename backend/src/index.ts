@@ -21,12 +21,15 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
+  
+  socket.emit('ping');
+
   socket.on('disconnect', () => {
     console.log(`${socket.id} disconnected`);
   });
 })
 
 server.listen(port, () => {
-  console.log(`Server listening on port ${port}.`);
-})
+  console.log(`Started server at http://localhost:${port}.`);
+  })
 
