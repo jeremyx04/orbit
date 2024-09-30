@@ -9,7 +9,7 @@ const App = () => {
   });
   return (
     <div className="App">
-      signal
+      orbit
       <div>
         <button onClick={()=>{
           sendMessage('test');

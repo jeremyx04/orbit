@@ -23,8 +23,14 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   useEffect(() => {
     if(!socketRef.current) {
       socketRef.current = io(BACKEND_URL);
-      socketRef.current.on('offer', (event) => {
+      socketRef.current.on('init', () => {
         peerConnectionRef.current = new PeerConnection(socketRef.current!);
+        peerConnectionRef.current.initLocal();
+      });
+      socketRef.current.on('sdp-offer', (sdp: string) => {
+        if(peerConnectionRef.current) {
+          peerConnectionRef.current.initRemote(JSON.parse(sdp));
+        }
       });
     }
 

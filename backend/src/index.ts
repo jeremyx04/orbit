@@ -21,9 +21,12 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
+  socket.emit('init');
+  socket.on('sdp-offer', (res) => {
+    console.log(`received offer from ${res.origin}`);
+    socket.emit('sdp-offer', res.sdp);
+  });
 
-  socket.emit('ping');
-  socket.emit('offer');
   socket.on('disconnect', () => {
     console.log(`${socket.id} disconnected`);
   });

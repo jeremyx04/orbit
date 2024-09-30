@@ -7,18 +7,32 @@ export class PeerConnection {
   constructor(signalingServer: Socket) {
     this.rtcConnection = new RTCPeerConnection();
     this.signalingServer = signalingServer;
-    
+
     this.rtcConnection.onicecandidate = (event) => {
       this.signalingServer.emit('ice-candidate', event.candidate);
     }
 
-    this.rtcConnection.ondatachannel = (event) => {
-      console.log(event);
-      this.rtcDataChannel = event.channel;
-      this.setUpDataChannel();
-    }
+    // this.rtcDataChannel = this.rtcConnection.createDataChannel("channel");
+    
+    // this.rtcDataChannel.onopen = (event) => {
+    //   console.log('opened data channel');
+    // }
 
     this.setHandlers();
+  }
+
+  async initLocal() {
+    const sdp = await this.rtcConnection.createOffer();
+    this.rtcConnection.setLocalDescription(sdp);
+    const offer = {
+      origin: this.signalingServer.id,
+      sdp: JSON.stringify(sdp),
+    }
+    this.signalingServer.emit('sdp-offer', offer);
+  }
+
+  async initRemote(sdp: RTCSessionDescriptionInit) {
+    this.rtcConnection.setRemoteDescription(sdp);
   }
 
   private setHandlers = () => {
