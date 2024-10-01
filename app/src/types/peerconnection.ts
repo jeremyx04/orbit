@@ -9,6 +9,8 @@ export class PeerConnection {
     this.signalingServer = signalingServer;
 
     this.rtcConnection.onicecandidate = (event) => {
+      console.log('new candidate boys');
+      
       this.signalingServer.emit('ice-candidate', event.candidate);
     }
 
@@ -22,17 +24,23 @@ export class PeerConnection {
   }
 
   async initLocal() {
-    const sdp = await this.rtcConnection.createOffer();
-    this.rtcConnection.setLocalDescription(sdp);
+    const res = await this.rtcConnection.createOffer();
+    this.rtcConnection.setLocalDescription(res);
     const offer = {
       origin: this.signalingServer.id,
-      sdp: JSON.stringify(sdp),
+      sdp: JSON.stringify(res),
     }
     this.signalingServer.emit('sdp-offer', offer);
   }
 
   async initRemote(sdp: RTCSessionDescriptionInit) {
     this.rtcConnection.setRemoteDescription(sdp);
+    const res = await this.rtcConnection.createAnswer();
+    const answer = {
+      origin: this.signalingServer.id,
+      sdp: JSON.stringify(res),
+    }
+    this.signalingServer.emit('sdp-answer', answer);
   }
 
   private setHandlers = () => {

@@ -22,9 +22,18 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
   socket.emit('init');
+
   socket.on('sdp-offer', (res) => {
-    console.log(`received offer from ${res.origin}`);
+    //console.log(`received offer from ${res.origin}`);
     socket.emit('sdp-offer', res.sdp);
+  });
+
+  socket.on('sdp-answer', (res) => {
+    console.log(`received answer from ${res.origin}`);
+  });
+
+  socket.on('ice-candidate', (res) => {
+    console.log(`received ice candidate ${res}`);
   });
 
   socket.on('disconnect', () => {
