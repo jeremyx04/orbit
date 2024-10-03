@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import io, { Socket } from "socket.io-client";
 import { PeerConnection } from "../types/peerconnection";
 import { BACKEND_URL } from "../services/config";
@@ -9,38 +9,56 @@ type Props = {
 
 export const useWebRTC = ({ onMessageReceived } : Props) => {
   const socketRef = useRef<Socket | undefined>(undefined);
-  const peerConnectionRef = useRef<PeerConnection | undefined>(undefined);
+  const localConnectionRef = useRef<PeerConnection|undefined>(undefined);
+  const remoteConnectionsRef = useRef<PeerConnection[]>([]);
 
   const sendMessage = useCallback((message: string) => {
-    if(peerConnectionRef.current?.rtcDataChannel 
-      && peerConnectionRef.current.rtcDataChannel.readyState === 'open') {
-      peerConnectionRef.current?.rtcDataChannel.send(message);
-    } else {
-      console.error('Data channel is closed');
-    }
+    // if(peerConnectionsRef.current?.rtcDataChannel 
+    //   && peerConnectionsRef.current.rtcDataChannel.readyState === 'open') {
+    //   peerConnectionsRef.current?.rtcDataChannel.send(message);
+    // } else {
+    //   console.error('Data channel is closed');
+    // }
   }, []);
 
   useEffect(() => {
+    const remoteConnections = remoteConnectionsRef.current;
+
     if(!socketRef.current) {
       socketRef.current = io(BACKEND_URL);
       socketRef.current.on('init', () => {
-        peerConnectionRef.current = new PeerConnection(socketRef.current!);
-        peerConnectionRef.current.initLocal();
-      });
+        localConnectionRef.current = new PeerConnection(socketRef.current!);
+        localConnectionRef.current.initLocal();
+      }); 
+      socketRef.current.on('new-peer', () => {
+        const newConnection = new PeerConnection(socketRef.current!);
+        remoteConnectionsRef.current.push(newConnection);
+      })
       socketRef.current.on('sdp-offer', (sdp: string) => {
-        if(peerConnectionRef.current) {
-          peerConnectionRef.current.initRemote(JSON.parse(sdp));
-        }
+        remoteConnectionsRef.current.forEach((connection) => {
+          console.log(connection.rtcConnection.signalingState);
+          connection.initRemote(JSON.parse(sdp));
+        })
       });
+
+      // socketRef.current.on('sdp-answer', (sdp: string) => {
+      //   if(peerConnectionRef.current) {
+      //     console.log(peerConnectionRef.current.rtcConnection.signalingState);
+      //   }
+      // });
     }
 
     return () => {
-      if(peerConnectionRef.current) {
-        peerConnectionRef.current.signalingServer.disconnect();
-        peerConnectionRef.current.rtcConnection.close();
+      if(localConnectionRef.current) {
+        localConnectionRef.current.signalingServer.disconnect();
+        localConnectionRef.current.rtcConnection.close();
       }
+      remoteConnections.forEach((connection) => {
+        connection.signalingServer.disconnect();
+        connection.rtcConnection.close();
+      })
     }
-  }, [onMessageReceived]);
+  }, []);
 
   return { sendMessage };
 }

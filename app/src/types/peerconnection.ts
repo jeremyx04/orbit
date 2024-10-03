@@ -1,20 +1,19 @@
 import { Socket } from "socket.io-client";
-
+import {v4 as uuidv4} from "uuid";
 export class PeerConnection {
+  id: string;
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
   rtcDataChannel?: RTCDataChannel;
   constructor(signalingServer: Socket) {
+    this.id = uuidv4();
     this.rtcConnection = new RTCPeerConnection();
     this.signalingServer = signalingServer;
 
     this.rtcConnection.onicecandidate = (event) => {
-      console.log('new candidate boys');
-      
+      console.log('ice candidate received');
       this.signalingServer.emit('ice-candidate', event.candidate);
     }
-
-    // this.rtcDataChannel = this.rtcConnection.createDataChannel("channel");
     
     // this.rtcDataChannel.onopen = (event) => {
     //   console.log('opened data channel');
@@ -25,21 +24,23 @@ export class PeerConnection {
 
   async initLocal() {
     const res = await this.rtcConnection.createOffer();
-    this.rtcConnection.setLocalDescription(res);
+    await this.rtcConnection.setLocalDescription(res);
+    // this.rtcDataChannel = this.rtcConnection.createDataChannel("channel");
+    // this.setUpDataChannel();
     const offer = {
       origin: this.signalingServer.id,
       sdp: JSON.stringify(res),
-    }
+    };
     this.signalingServer.emit('sdp-offer', offer);
   }
 
   async initRemote(sdp: RTCSessionDescriptionInit) {
-    this.rtcConnection.setRemoteDescription(sdp);
+    await this.rtcConnection.setRemoteDescription(sdp);
     const res = await this.rtcConnection.createAnswer();
     const answer = {
       origin: this.signalingServer.id,
       sdp: JSON.stringify(res),
-    }
+    };
     this.signalingServer.emit('sdp-answer', answer);
   }
 

@@ -1,7 +1,7 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import { Server } from 'socket.io';
+import { DefaultEventsMap, Server, Socket } from 'socket.io';
 
 const port = 3001;
 
@@ -19,17 +19,25 @@ const io = new Server(server, {
   }
 });
 
+let clients: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>[] = [];
+
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
-  socket.emit('init');
+
+  clients.forEach((client) => {
+    client.emit('new-peer');
+  });
+
+  clients.push(socket);
 
   socket.on('sdp-offer', (res) => {
-    //console.log(`received offer from ${res.origin}`);
+    console.log(`received offer from ${res.origin}`);
     socket.emit('sdp-offer', res.sdp);
   });
 
   socket.on('sdp-answer', (res) => {
     console.log(`received answer from ${res.origin}`);
+    socket.emit('sdp-answer', res.sdp);
   });
 
   socket.on('ice-candidate', (res) => {
@@ -37,11 +45,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    clients = clients.filter(item => item.id !== socket.id);
     console.log(`${socket.id} disconnected`);
   });
+
+  socket.emit('init');
 })
 
 server.listen(port, () => {
   console.log(`Started server at http://localhost:${port}.`);
-  })
+})
 
