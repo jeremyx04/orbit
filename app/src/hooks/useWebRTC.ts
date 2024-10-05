@@ -14,6 +14,7 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
 
   const sendMessage = useCallback((message: string) => {
     if(localConnectionRef.current?.rtcDataChannel) {
+      console.log(localConnectionRef.current.rtcDataChannel);
       localConnectionRef.current.rtcDataChannel.send(message);
       console.log('sending message ' + message);
     } else {
@@ -42,7 +43,7 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
       socketRef.current.on('sdp-answer', async (sdp: string) => {
         if(localConnectionRef.current) {
           await localConnectionRef.current.rtcConnection.setRemoteDescription(JSON.parse(sdp));
-          console.log(localConnectionRef.current.rtcConnection.iceConnectionState);
+          console.log('remote description set');
         }
       });
       socketRef.current.on('ice-candidate', async (candidate: string) => {

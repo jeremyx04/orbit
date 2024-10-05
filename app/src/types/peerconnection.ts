@@ -15,10 +15,10 @@ export class PeerConnection {
     console.log('making a peer connection');
     this.id = uuidv4();
     this.signalingServer = signalingServer;
-
+    console.log(signalingServer.id);
     this.rtcConnection = new RTCPeerConnection(config);
 
-    this.rtcDataChannel = this.rtcConnection.createDataChannel('channel');
+
 
     this.rtcConnection.onicecandidate = (event) => {
       if(event.candidate) {
@@ -31,7 +31,7 @@ export class PeerConnection {
     };
     
     this.rtcConnection.ondatachannel = (event) => {
-      console.log('getting a data channel');
+      console.log(`my id is ${this.signalingServer.id} getting a data channel `, event.channel);
       this.rtcDataChannel = event.channel;
       this.setUpDataChannel();
     }
@@ -40,7 +40,7 @@ export class PeerConnection {
   }
 
   async initLocal() {
-    this.rtcDataChannel = this.rtcConnection.createDataChannel('channel');
+    this.rtcDataChannel = this.rtcConnection.createDataChannel(`channel-${this.signalingServer.id}`);
     this.setUpDataChannel();
     const res = await this.rtcConnection.createOffer({
       iceRestart: true,
