@@ -1,32 +1,51 @@
 import { Socket } from "socket.io-client";
 import {v4 as uuidv4} from "uuid";
+
+const config = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' }, 
+  ]
+};
 export class PeerConnection {
   id: string;
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
   rtcDataChannel?: RTCDataChannel;
   constructor(signalingServer: Socket) {
+    console.log('making a peer connection');
     this.id = uuidv4();
-    this.rtcConnection = new RTCPeerConnection();
     this.signalingServer = signalingServer;
 
+    this.rtcConnection = new RTCPeerConnection(config);
+
+    this.rtcDataChannel = this.rtcConnection.createDataChannel('channel');
+
     this.rtcConnection.onicecandidate = (event) => {
-      console.log('ice candidate received');
-      this.signalingServer.emit('ice-candidate', event.candidate);
+      if(event.candidate) {
+        this.signalingServer.emit('ice-candidate', JSON.stringify(event.candidate));
+      }
     }
     
-    // this.rtcDataChannel.onopen = (event) => {
-    //   console.log('opened data channel');
-    // }
+    this.rtcConnection.onicegatheringstatechange = () => {
+      console.log('ICE gathering state:', this.rtcConnection.iceGatheringState);
+    };
+    
+    this.rtcConnection.ondatachannel = (event) => {
+      console.log('getting a data channel');
+      this.rtcDataChannel = event.channel;
+      this.setUpDataChannel();
+    }
 
-    this.setHandlers();
+    this.setServerHandlers();
   }
 
   async initLocal() {
-    const res = await this.rtcConnection.createOffer();
+    this.rtcDataChannel = this.rtcConnection.createDataChannel('channel');
+    this.setUpDataChannel();
+    const res = await this.rtcConnection.createOffer({
+      iceRestart: true,
+    });
     await this.rtcConnection.setLocalDescription(res);
-    // this.rtcDataChannel = this.rtcConnection.createDataChannel("channel");
-    // this.setUpDataChannel();
     const offer = {
       origin: this.signalingServer.id,
       sdp: JSON.stringify(res),
@@ -37,29 +56,20 @@ export class PeerConnection {
   async initRemote(sdp: RTCSessionDescriptionInit) {
     await this.rtcConnection.setRemoteDescription(sdp);
     const res = await this.rtcConnection.createAnswer();
+    await this.rtcConnection.setLocalDescription(res);
     const answer = {
       origin: this.signalingServer.id,
       sdp: JSON.stringify(res),
     };
     this.signalingServer.emit('sdp-answer', answer);
+    console.log(this.rtcConnection.currentLocalDescription);
+    console.log(this.rtcConnection.currentRemoteDescription);
   }
 
-  private setHandlers = () => {
+  private setServerHandlers = () => {
     this.signalingServer.on('ping', (_event) => {
       console.log('pong');
     })
-    this.signalingServer.on('offer', async (offer) => {
-      await this.rtcConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await this.rtcConnection.createAnswer();
-      this.rtcConnection.setLocalDescription(answer);
-      this.signalingServer.emit('answer', answer);
-    })
-    this.signalingServer.on('answer', async (answer) => {
-      await this.rtcConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    })
-    this.signalingServer.on('ice-candidate', async (candidate) => {
-      await this.rtcConnection.addIceCandidate(candidate);
-    });
   }
   
   private setUpDataChannel = () => {

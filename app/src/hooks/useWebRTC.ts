@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import { PeerConnection } from "../types/peerconnection";
 import { BACKEND_URL } from "../services/config";
@@ -13,12 +13,12 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   const remoteConnectionsRef = useRef<PeerConnection[]>([]);
 
   const sendMessage = useCallback((message: string) => {
-    // if(peerConnectionsRef.current?.rtcDataChannel 
-    //   && peerConnectionsRef.current.rtcDataChannel.readyState === 'open') {
-    //   peerConnectionsRef.current?.rtcDataChannel.send(message);
-    // } else {
-    //   console.error('Data channel is closed');
-    // }
+    if(localConnectionRef.current?.rtcDataChannel) {
+      localConnectionRef.current.rtcDataChannel.send(message);
+      console.log('sending message ' + message);
+    } else {
+      console.error('Data channel is closed');
+    }
   }, []);
 
   useEffect(() => {
@@ -36,18 +36,23 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
       })
       socketRef.current.on('sdp-offer', (sdp: string) => {
         remoteConnectionsRef.current.forEach((connection) => {
-          console.log(connection.rtcConnection.signalingState);
           connection.initRemote(JSON.parse(sdp));
         })
       });
-
-      // socketRef.current.on('sdp-answer', (sdp: string) => {
-      //   if(peerConnectionRef.current) {
-      //     console.log(peerConnectionRef.current.rtcConnection.signalingState);
-      //   }
-      // });
+      socketRef.current.on('sdp-answer', async (sdp: string) => {
+        if(localConnectionRef.current) {
+          await localConnectionRef.current.rtcConnection.setRemoteDescription(JSON.parse(sdp));
+          console.log(localConnectionRef.current.rtcConnection.iceConnectionState);
+        }
+      });
+      socketRef.current.on('ice-candidate', async (candidate: string) => {
+        if(localConnectionRef.current) {
+            await localConnectionRef.current.rtcConnection.addIceCandidate(JSON.parse(candidate));
+            console.log('added ice candidate');
+        }
+      })
     }
-
+    
     return () => {
       if(localConnectionRef.current) {
         localConnectionRef.current.signalingServer.disconnect();

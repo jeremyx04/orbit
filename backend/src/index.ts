@@ -24,24 +24,23 @@ let clients: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>[]
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
 
-  clients.forEach((client) => {
-    client.emit('new-peer');
-  });
+  socket.broadcast.emit('new-peer');
 
   clients.push(socket);
-
+  
   socket.on('sdp-offer', (res) => {
     console.log(`received offer from ${res.origin}`);
-    socket.emit('sdp-offer', res.sdp);
+    socket.broadcast.emit('sdp-offer', res.sdp);
   });
 
   socket.on('sdp-answer', (res) => {
     console.log(`received answer from ${res.origin}`);
-    socket.emit('sdp-answer', res.sdp);
+    socket.broadcast.emit('sdp-answer', res.sdp);
   });
 
   socket.on('ice-candidate', (res) => {
     console.log(`received ice candidate ${res}`);
+    socket.broadcast.emit('ice-candidate', res);
   });
 
   socket.on('disconnect', () => {
@@ -50,6 +49,7 @@ io.on('connection', (socket) => {
   });
 
   socket.emit('init');
+  
 })
 
 server.listen(port, () => {

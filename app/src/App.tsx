@@ -7,6 +7,7 @@ const App = () => {
       console.log(`Received message: ${message}`);
     }
   });
+
   return (
     <div className="App">
       orbit
