@@ -50,17 +50,14 @@ export class PeerConnection {
     this.signalingServer.emit('new-sdp-offer', offer);
   }
 
-  async initRemote(sdp: RTCSessionDescriptionInit, target: string) {
+  async initRemote(sdp: RTCSessionDescriptionInit) {
     await this.rtcConnection.setRemoteDescription(sdp);
     const res = await this.rtcConnection.createAnswer();
     await this.rtcConnection.setLocalDescription(res);
     const answer = {
-      target,
       sdp: JSON.stringify(res),
     };
-    this.signalingServer.emit('new-sdp-answer', answer);
-    console.log(this.rtcConnection.currentLocalDescription);
-    console.log(this.rtcConnection.currentRemoteDescription);
+    this.signalingServer.emit('sdp-answer', answer);
   }
 
   private setServerHandlers = () => {

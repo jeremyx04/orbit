@@ -26,56 +26,43 @@ let clients: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>[]
 io.on('connection', (socket) => {
   console.log(`${socket.id} connected`);
 
-  socket.broadcast.emit('new-peer', socket.id);
+  const isFull = clients.length >= 2;
 
-  clients.push(socket);
-  
-  socket.on('new-sdp-offer', (res: SDP) => {
-    console.log('received new offer');
-    socket.broadcast.emit('new-sdp-offer', res);
-  });
-
-  socket.on('sdp-offer', (res: SDP) => {
-    console.log(`received offer targeting ${res.target}`);
-
-    let client = clients.find((client) => {
-      return client.id === res.target;
-    })
+  if(isFull) {
+    socket.emit('init', 'full');
+  }
+  else {
+    clients.push(socket);
     
-    if(client) {
-      client?.emit('sdp-offer', res);
-    }
-  });
-
-  socket.on('new-sdp-answer', (res: SDP) => {
-    console.log(`received answer targeting ${res.target}`);
+    if(clients.length === 2) {
+      socket.broadcast.emit('new-peer', socket.id);
+    } 
     
-    let client = clients.find((client) => {
-      return client.id === res.target;
-    })
+    socket.on('new-sdp-offer', (res: SDP) => {
+      console.log('received new offer');
+      socket.broadcast.emit('new-sdp-offer', res);
+    });
 
-    if(client) {
-      client?.emit('sdp-answer', res.sdp);
-    }
-  });
+    socket.on('sdp-offer', (res: SDP) => {
+      socket.broadcast.emit('sdp-offer', res);
+    });
 
-  socket.on('sdp-answer', (res: SDP) => {
-    console.log(`received answer from ${res.origin}`);
-    socket.broadcast.emit('sdp-answer', res.sdp);
-  });
+    socket.on('sdp-answer', (res: SDP) => {
+      socket.broadcast.emit('sdp-answer', res.sdp);
+    });
 
+    socket.on('ice-candidate', (res: string) => {
+      socket.broadcast.emit('ice-candidate', res);
+    });
 
-  socket.on('ice-candidate', (res: string) => {
-    socket.broadcast.emit('ice-candidate', res);
-  });
-
-  socket.on('disconnect', () => {
-    clients = clients.filter(item => item.id !== socket.id);
-    console.log(`${socket.id} disconnected`);
-  });
-
-  socket.emit('init');
-  
+    socket.on('disconnect', () => {
+      clients = clients.filter(item => item.id !== socket.id);
+      console.log(`${socket.id} disconnected`);
+      socket.broadcast.emit('disconnect-remote');
+    });
+    
+    socket.emit('init', clients.length === 2 ? 'peer' : 'ok');
+  }
 })
 
 server.listen(port, () => {

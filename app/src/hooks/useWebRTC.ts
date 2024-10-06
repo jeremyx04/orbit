@@ -11,7 +11,7 @@ type Props = {
 export const useWebRTC = ({ onMessageReceived } : Props) => {
   const socketRef = useRef<Socket | undefined>(undefined);
   const localConnectionRef = useRef<PeerConnection|undefined>(undefined);
-  const remoteConnectionsRef = useRef<PeerConnection[]>([]);
+  const remoteConnectionRef = useRef<PeerConnection|undefined>(undefined);
 
   const sendMessage = useCallback((message: string) => {
     if(localConnectionRef.current?.rtcDataChannel) {
@@ -24,49 +24,47 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   }, []);
 
   useEffect(() => {
-    const remoteConnections = remoteConnectionsRef.current;
-
     if(!socketRef.current) {
       socketRef.current = io(BACKEND_URL);
-      // Make connection to signaling server, which will respond with init
-      // On init, make a local PeerConnection instance, and send an offer to already existing users
-      // Already existing users should reply with an answer, and also their own offer
-      // Then, reply to existing users with an answer, and connections should be made.
-      socketRef.current.on('init', () => {
-        localConnectionRef.current = new PeerConnection(socketRef.current!);
-        localConnectionRef.current.initLocal();
-        console.log(localConnectionRef.current.signalingServer.id);
+
+      socketRef.current.on('init', (status) => {
+        if(status === 'peer') {
+          localConnectionRef.current = new PeerConnection(socketRef.current!);
+          localConnectionRef.current.initLocal();
+        }
       }); 
 
-      socketRef.current.on('new-peer', (id) => {
-        const newConnection = new PeerConnection(socketRef.current!, id);
-        remoteConnectionsRef.current.push(newConnection);
+      socketRef.current.on('new-peer', () => {
+        localConnectionRef.current = new PeerConnection(socketRef.current!);
+        localConnectionRef.current.initLocal();
+        remoteConnectionRef.current = new PeerConnection(socketRef.current!);
       })
 
-      // Already existing users receive this when a new client connects
+      socketRef.current.on('disconnect-remote', async () => {
+        if(remoteConnectionRef.current) {
+          localConnectionRef.current?.rtcConnection.restartIce();
+          remoteConnectionRef.current.rtcConnection.close();
+          remoteConnectionRef.current.rtcDataChannel?.close();
+          remoteConnectionRef.current = undefined;
+        }
+      });
+
+      // Already existing user receives this when a new client connects
       socketRef.current.on('new-sdp-offer', async (sdp: SDP) => {
-        let remoteConnection = remoteConnectionsRef.current.find((current) => {
-          return current.id === sdp.origin;
-        });
-        if(remoteConnection) {
-          console.log('replying to sender');
-          await remoteConnection.initRemote(JSON.parse(sdp.sdp), remoteConnection.id);
+        if(remoteConnectionRef.current) {
+          await remoteConnectionRef.current.initRemote(JSON.parse(sdp.sdp));
           const res: SDP = { 
             origin: localConnectionRef.current!.signalingServer.id,
-            target: remoteConnection.id,
             sdp: JSON.stringify(localConnectionRef.current!.rtcConnection.localDescription),
           };
           socketRef.current?.emit('sdp-offer', res);
         }
       });
       
-      // This is the offer the new client receives from already existing users
+      // This is the offer the new client receives from the already existing user
       socketRef.current.on('sdp-offer', async (sdp: SDP) => {
-        // Add the new peer
-        const newConnection = new PeerConnection(socketRef.current!, sdp.origin);
-        remoteConnectionsRef.current.push(newConnection);
-        console.log(sdp.sdp);
-        newConnection.initRemote(JSON.parse(sdp.sdp), sdp.origin!);
+        remoteConnectionRef.current = new PeerConnection(socketRef.current!, sdp.origin);
+        await remoteConnectionRef.current.initRemote(JSON.parse(sdp.sdp));
       });
 
       socketRef.current.on('sdp-answer', async (sdp: string) => {
@@ -75,10 +73,6 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
         }
       });
       
-      socketRef.current.on('new-sdp-answer', async (sdp: string) => {
-        
-      });
-
       socketRef.current.on('ice-candidate', async (candidate: string) => {
         if(localConnectionRef.current && localConnectionRef.current.rtcConnection.remoteDescription != null) {
             await localConnectionRef.current.rtcConnection.addIceCandidate(JSON.parse(candidate));
@@ -90,11 +84,13 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
       if(localConnectionRef.current) {
         localConnectionRef.current.signalingServer.disconnect();
         localConnectionRef.current.rtcConnection.close();
+        localConnectionRef.current.rtcDataChannel?.close();
       }
-      remoteConnections.forEach((connection) => {
-        connection.signalingServer.disconnect();
-        connection.rtcConnection.close();
-      })
+      if(remoteConnectionRef.current) {
+        remoteConnectionRef.current.signalingServer.disconnect();
+        remoteConnectionRef.current.rtcConnection.close();
+        remoteConnectionRef.current.rtcDataChannel?.close();
+      }
     }
   }, []);
 
