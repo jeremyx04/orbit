@@ -39,7 +39,6 @@ io.on('connection', (socket) => {
     } 
     
     socket.on('new-sdp-offer', (res: SDP) => {
-      console.log('received new offer');
       socket.broadcast.emit('new-sdp-offer', res);
     });
 

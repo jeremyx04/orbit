@@ -6,6 +6,7 @@ const config = {
     { urls: 'stun:stun.l.google.com:19302' }, 
   ]
 };
+
 export class PeerConnection {
   id: string;
   rtcConnection: RTCPeerConnection;
@@ -32,8 +33,6 @@ export class PeerConnection {
       this.rtcDataChannel = event.channel;
       this.setUpDataChannel();
     }
-
-    this.setServerHandlers();
   }
 
   async initLocal() {
@@ -60,12 +59,6 @@ export class PeerConnection {
     this.signalingServer.emit('sdp-answer', answer);
   }
 
-  private setServerHandlers = () => {
-    this.signalingServer.on('ping', (_event) => {
-      console.log('pong');
-    })
-  }
-  
   private setUpDataChannel = () => {
     if(this.rtcDataChannel) {
       this.rtcDataChannel.onopen = () => {
@@ -73,6 +66,14 @@ export class PeerConnection {
       }
       this.rtcDataChannel.onmessage = (event) => {
         console.log(`received message: ${event.data}`);
+        const receiveBuffer = [];
+        receiveBuffer.push(event.data);
+        const received = new Blob(receiveBuffer);
+        console.log(received);
+        const fr = new FileReader();
+        fr.onload = (event) => {
+          console.log('on load', event);
+        }
       }
       this.rtcDataChannel.onclose = () => {
         console.log('data channel closed');

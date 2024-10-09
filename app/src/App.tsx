@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWebRTC } from './hooks/useWebRTC';
 
 const App = () => {
-  const { sendMessage } = useWebRTC({
+  const { sendMessage, sendFile, clients } = useWebRTC({
     onMessageReceived: (message) => {
-      console.log(`Received message: ${message}`);
+      console.log(`received message: ${message}`);
     }
   });
 
@@ -26,7 +26,13 @@ const App = () => {
           <button onClick={() => sendMessage('test')}>
             Send Message
           </button>
-
+          <button onClick={() => {
+            if(file) {
+              sendFile(file);
+            }
+          }}>
+            Send File
+          </button>
         <div>
           <input 
             id="file" 

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef } from "react";
 import io, { Socket } from "socket.io-client";
-import { PeerConnection } from "../types/peerconnection";
-import { BACKEND_URL } from "../services/config";
+import { PeerConnection } from "../services/peerconnection";
+
 import { SDP } from '../../../common/types';
 
 type Props = {
   onMessageReceived: (message: string) => void;
 }
+
+const BACKEND_URL = 'http://localhost:3001';
+const CHUNK_SIZE = 16384;
 
 export const useWebRTC = ({ onMessageReceived } : Props) => {
   const socketRef = useRef<Socket | undefined>(undefined);
@@ -15,18 +18,41 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
 
   const sendMessage = useCallback((message: string) => {
     if(localConnectionRef.current?.rtcDataChannel) {
-      console.log(localConnectionRef.current.rtcDataChannel);
       localConnectionRef.current.rtcDataChannel.send(message);
       console.log('sending message ' + message);
     } else {
-      console.error('Data channel is closed');
+      console.warn('data channel is closed');
     }
   }, []);
 
-  useEffect(() => {
-    if(!socketRef.current) {
-      socketRef.current = io(BACKEND_URL);
+  const sendFile = useCallback((file: File) => {
+      console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
+      const fr = new FileReader();
+      let offset = 0;
+      fr.addEventListener('error', error => console.error('Error reading file:', error));
+      fr.addEventListener('abort', event => console.log('File reading aborted:', event));
+      fr.addEventListener('load', e => {
+        console.log('FileRead.onload ', e);
+          if(localConnectionRef.current?.rtcDataChannel) {
+          localConnectionRef.current?.rtcDataChannel.send(e.target!.result! as ArrayBuffer);
+          offset += (e.target!.result! as ArrayBuffer).byteLength;
+          if (offset < file.size) {
+            readSlice(offset);
+          }
+        } else {
+          console.warn('data channel is closed');
+        }
+      });
+    const readSlice = (o: number) => {
+      console.log('readSlice ', o);
+      const slice = file.slice(offset, o + CHUNK_SIZE);
+      fr.readAsArrayBuffer(slice);
+    };
+    readSlice(0);
+  }, []);
 
+  const setHandlers = () => {
+    if(socketRef.current) {
       socketRef.current.on('init', (status) => {
         if(status === 'peer') {
           localConnectionRef.current = new PeerConnection(socketRef.current!);
@@ -77,7 +103,14 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
         if(localConnectionRef.current && localConnectionRef.current.rtcConnection.remoteDescription != null) {
             await localConnectionRef.current.rtcConnection.addIceCandidate(JSON.parse(candidate));
         }
-      })
+      });
+    }
+  }
+
+  useEffect(() => {
+    if(!socketRef.current) {
+      socketRef.current = io(BACKEND_URL);
+      setHandlers();
     }
     
     return () => {
@@ -94,5 +127,5 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     }
   }, []);
 
-  return { sendMessage };
+  return { sendMessage, sendFile, clients: remoteConnectionRef };
 }
