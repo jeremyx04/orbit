@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import io, { Socket } from "socket.io-client";
 import { PeerConnection } from "../services/peerconnection";
 
 import { SDP } from '../../../common/types';
+import { FileMetadata } from "../types/FileMetadata";
 
 type Props = {
   onMessageReceived: (message: string) => void;
 }
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = 'localhost:3001';
 const CHUNK_SIZE = 16384;
 
 export const useWebRTC = ({ onMessageReceived } : Props) => {
@@ -16,16 +17,22 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   const localConnectionRef = useRef<PeerConnection|undefined>(undefined);
   const remoteConnectionRef = useRef<PeerConnection|undefined>(undefined);
 
-  const sendMessage = useCallback((message: string) => {
+  const sendMetadata = (file: File) => {
     if(localConnectionRef.current?.rtcDataChannel) {
-      localConnectionRef.current.rtcDataChannel.send(message);
-      console.log('sending message ' + message);
+      const metaData = {
+        filename: file.name,
+        chunksize: CHUNK_SIZE,
+        chunkcount: Math.ceil(file.size / CHUNK_SIZE),
+      } as FileMetadata;
+      localConnectionRef.current.rtcDataChannel.send(JSON.stringify(metaData));
+      console.log('sending message ' + metaData);
     } else {
       console.warn('data channel is closed');
     }
-  }, []);
+  };
 
   const sendFile = useCallback((file: File) => {
+      sendMetadata(file);
       console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
       const fr = new FileReader();
       let offset = 0;
@@ -44,7 +51,6 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
         }
       });
     const readSlice = (o: number) => {
-      console.log('readSlice ', o);
       const slice = file.slice(offset, o + CHUNK_SIZE);
       fr.readAsArrayBuffer(slice);
     };
@@ -116,16 +122,16 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     return () => {
       if(localConnectionRef.current) {
         localConnectionRef.current.signalingServer.disconnect();
-        localConnectionRef.current.rtcConnection.close();
         localConnectionRef.current.rtcDataChannel?.close();
+        localConnectionRef.current.rtcConnection.close();
       }
       if(remoteConnectionRef.current) {
         remoteConnectionRef.current.signalingServer.disconnect();
-        remoteConnectionRef.current.rtcConnection.close();
         remoteConnectionRef.current.rtcDataChannel?.close();
+        remoteConnectionRef.current.rtcConnection.close();
       }
     }
   }, []);
 
-  return { sendMessage, sendFile, clients: remoteConnectionRef };
+  return { sendFile, clients: remoteConnectionRef };
 }

@@ -1,5 +1,6 @@
 import { Socket } from "socket.io-client";
 import {v4 as uuidv4} from "uuid";
+import { FileMetadata } from "../types/FileMetadata";
 
 const config = {
   iceServers: [
@@ -12,6 +13,10 @@ export class PeerConnection {
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
   rtcDataChannel?: RTCDataChannel;
+  private receivedFile?: Blob;
+  private receivedBuffer: ArrayBuffer[] = [];
+  private receivedChunks = 0;
+  private fileMetaData?: FileMetadata;
   constructor(signalingServer: Socket, id?: string) {
     this.id = id ?? uuidv4();
     this.signalingServer = signalingServer;
@@ -61,20 +66,33 @@ export class PeerConnection {
 
   private setUpDataChannel = () => {
     if(this.rtcDataChannel) {
+      this.rtcDataChannel.binaryType = 'arraybuffer';
       this.rtcDataChannel.onopen = () => {
         console.log('data channel open');
       }
+
       this.rtcDataChannel.onmessage = (event) => {
-        console.log(`received message: ${event.data}`);
-        const receiveBuffer = [];
-        receiveBuffer.push(event.data);
-        const received = new Blob(receiveBuffer);
-        console.log(received);
-        const fr = new FileReader();
-        fr.onload = (event) => {
-          console.log('on load', event);
+        console.log(event);
+        const data = event.data;
+        if (typeof data === 'string') {
+          const metadata: FileMetadata = JSON.parse(data);
+          console.log('Received metadata:', metadata);
+          this.receivedFile = new Blob();  
+          this.fileMetaData = metadata;
+        } else if (data instanceof ArrayBuffer) {
+          this.receivedBuffer.push(data);
+          this.receivedChunks++;
+          if(this.receivedChunks === this.fileMetaData?.chunkcount) {
+            this.receivedFile = new Blob(this.receivedBuffer);
+            this.receivedBuffer = [];
+            this.receivedChunks = 0;
+            console.log('Fully received file');
+          }
+        } else {
+          console.warn('Unrecognized message');
         }
       }
+      
       this.rtcDataChannel.onclose = () => {
         console.log('data channel closed');
       }
