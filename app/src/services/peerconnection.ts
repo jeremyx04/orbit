@@ -12,7 +12,7 @@ export class PeerConnection {
   id: string;
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
-  rtcDataChannel?: RTCDataChannel;
+  private rtcDataChannel?: RTCDataChannel;
   private receivedFile?: Blob;
   private receivedBuffer: ArrayBuffer[] = [];
   private receivedChunks = 0;
@@ -64,6 +64,20 @@ export class PeerConnection {
     this.signalingServer.emit('sdp-answer', answer);
   }
 
+  async sendData(message: any) {
+    if(this.rtcDataChannel) {
+      this.rtcDataChannel.send(message);
+    } else {
+      console.warn("Data channel not initialized");
+    }
+  }
+
+  async disconnect() {
+    this.rtcConnection.restartIce();
+    this.rtcDataChannel?.close();
+    this.rtcConnection.close();
+  }
+  
   private setUpDataChannel = () => {
     if(this.rtcDataChannel) {
       this.rtcDataChannel.binaryType = 'arraybuffer';
@@ -92,7 +106,7 @@ export class PeerConnection {
           console.warn('Unrecognized message');
         }
       }
-      
+
       this.rtcDataChannel.onclose = () => {
         console.log('data channel closed');
       }

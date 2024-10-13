@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import io, { Socket } from "socket.io-client";
-import { PeerConnection } from "../services/peerconnection";
+import { PeerConnection } from "../services/PeerConnection";
 
 import { SDP } from '../../../common/types';
 import { FileMetadata } from "../types/FileMetadata";
@@ -18,38 +18,36 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   const remoteConnectionRef = useRef<PeerConnection|undefined>(undefined);
 
   const sendMetadata = (file: File) => {
-    if(localConnectionRef.current?.rtcDataChannel) {
+    if(localConnectionRef.current) {
       const metaData = {
         filename: file.name,
         chunksize: CHUNK_SIZE,
         chunkcount: Math.ceil(file.size / CHUNK_SIZE),
       } as FileMetadata;
-      localConnectionRef.current.rtcDataChannel.send(JSON.stringify(metaData));
-      console.log('sending message ' + metaData);
+      localConnectionRef.current.sendData(JSON.stringify(metaData));
     } else {
-      console.warn('data channel is closed');
+      console.warn('Local connection undefined');
     }
   };
 
   const sendFile = useCallback((file: File) => {
-      sendMetadata(file);
-      console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
-      const fr = new FileReader();
-      let offset = 0;
-      fr.addEventListener('error', error => console.error('Error reading file:', error));
-      fr.addEventListener('abort', event => console.log('File reading aborted:', event));
-      fr.addEventListener('load', e => {
-        console.log('FileRead.onload ', e);
-          if(localConnectionRef.current?.rtcDataChannel) {
-          localConnectionRef.current?.rtcDataChannel.send(e.target!.result! as ArrayBuffer);
-          offset += (e.target!.result! as ArrayBuffer).byteLength;
-          if (offset < file.size) {
-            readSlice(offset);
-          }
-        } else {
-          console.warn('data channel is closed');
+    sendMetadata(file);
+    console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
+    const fr = new FileReader();
+    let offset = 0;
+    fr.addEventListener('error', error => console.error('Error reading file:', error));
+    fr.addEventListener('abort', event => console.log('File reading aborted:', event));
+    fr.addEventListener('load', e => {
+      if(localConnectionRef.current) {
+        localConnectionRef.current.sendData(e.target!.result! as ArrayBuffer);
+        offset += (e.target!.result! as ArrayBuffer).byteLength;
+        if (offset < file.size) {
+          readSlice(offset);
         }
-      });
+      } else {
+        console.warn('Local connection undefined')
+      }
+    });
     const readSlice = (o: number) => {
       const slice = file.slice(offset, o + CHUNK_SIZE);
       fr.readAsArrayBuffer(slice);
@@ -76,7 +74,6 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
         if(remoteConnectionRef.current) {
           localConnectionRef.current?.rtcConnection.restartIce();
           remoteConnectionRef.current.rtcConnection.close();
-          remoteConnectionRef.current.rtcDataChannel?.close();
           remoteConnectionRef.current = undefined;
         }
       });
@@ -121,14 +118,10 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     
     return () => {
       if(localConnectionRef.current) {
-        localConnectionRef.current.signalingServer.disconnect();
-        localConnectionRef.current.rtcDataChannel?.close();
-        localConnectionRef.current.rtcConnection.close();
+        localConnectionRef.current.disconnect();
       }
       if(remoteConnectionRef.current) {
-        remoteConnectionRef.current.signalingServer.disconnect();
-        remoteConnectionRef.current.rtcDataChannel?.close();
-        remoteConnectionRef.current.rtcConnection.close();
+        remoteConnectionRef.current.disconnect();
       }
     }
   }, []);
