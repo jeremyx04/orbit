@@ -4,6 +4,7 @@ import { PeerConnection } from "../services/PeerConnection";
 
 import { SDP } from '../../../common/types';
 import { FileMetadata } from "../types/FileMetadata";
+import { FileNameAndUrl } from "../types/FileNameAndUrl"
 
 type Props = {
   onMessageReceived: (message: string) => void;
@@ -17,12 +18,18 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
   const localConnectionRef = useRef<PeerConnection|undefined>(undefined);
   const remoteConnectionRef = useRef<PeerConnection|undefined>(undefined);
 
+  const [fileReceived, setFileReceived] = useState(false);
+
+  const setFileReceivedHandler = () => {
+    setFileReceived(true);
+  };
+
   const sendMetadata = (file: File) => {
     if(localConnectionRef.current) {
       const metaData = {
-        filename: file.name,
-        chunksize: CHUNK_SIZE,
-        chunkcount: Math.ceil(file.size / CHUNK_SIZE),
+        fileName: file.name,
+        chunkSize: CHUNK_SIZE,
+        chunkCount: Math.ceil(file.size / CHUNK_SIZE),
       } as FileMetadata;
       localConnectionRef.current.sendData(JSON.stringify(metaData));
     } else {
@@ -55,19 +62,31 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     readSlice(0);
   }, []);
 
+  const getReceivedFileNameAndUrl = () => {
+    const fileURL = remoteConnectionRef.current?.getReceivedFileURL();
+    if(fileURL) {
+        return { 
+          fileName: remoteConnectionRef.current!.getfileMetaData()!.fileName,
+          fileURL,
+        } as FileNameAndUrl;
+    } else {
+      return undefined;
+    }
+  };
+
   const setHandlers = () => {
     if(socketRef.current) {
       socketRef.current.on('init', (status) => {
         if(status === 'peer') {
-          localConnectionRef.current = new PeerConnection(socketRef.current!);
+          localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
           localConnectionRef.current.initLocal();
         }
       }); 
 
       socketRef.current.on('new-peer', () => {
-        localConnectionRef.current = new PeerConnection(socketRef.current!);
+        localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
         localConnectionRef.current.initLocal();
-        remoteConnectionRef.current = new PeerConnection(socketRef.current!);
+        remoteConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
       })
 
       socketRef.current.on('disconnect-remote', async () => {
@@ -92,7 +111,7 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
       
       // This is the offer the new client receives from the already existing user
       socketRef.current.on('sdp-offer', async (sdp: SDP) => {
-        remoteConnectionRef.current = new PeerConnection(socketRef.current!, sdp.origin);
+        remoteConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler, sdp.origin);
         await remoteConnectionRef.current.initRemote(JSON.parse(sdp.sdp));
       });
 
@@ -126,5 +145,5 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     }
   }, []);
 
-  return { sendFile, clients: remoteConnectionRef };
+  return { sendFile, fileReceived, getReceivedFileNameAndUrl, clients: remoteConnectionRef };
 }

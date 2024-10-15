@@ -1,5 +1,5 @@
 export type FileMetadata = {
-  filename: string;
-  chunksize: number;
-  chunkcount: number;
+  fileName: string;
+  chunkSize: number;
+  chunkCount: number;
 }

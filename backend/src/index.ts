@@ -67,4 +67,3 @@ io.on('connection', (socket) => {
 server.listen(port, () => {
   console.log(`Started server at http://localhost:${port}.`);
 })
-

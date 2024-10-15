@@ -12,14 +12,18 @@ export class PeerConnection {
   id: string;
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
+  onFileReceivedCallback: () => void;
   private rtcDataChannel?: RTCDataChannel;
   private receivedFile?: Blob;
   private receivedBuffer: ArrayBuffer[] = [];
   private receivedChunks = 0;
   private fileMetaData?: FileMetadata;
-  constructor(signalingServer: Socket, id?: string) {
+  private receivedFileUrl?: string;
+
+  constructor(signalingServer: Socket, onFileReceivedCallback: () => void, id?: string) {
     this.id = id ?? uuidv4();
     this.signalingServer = signalingServer;
+    this.onFileReceivedCallback = onFileReceivedCallback;
 
     this.rtcConnection = new RTCPeerConnection(config);
 
@@ -78,15 +82,12 @@ export class PeerConnection {
     this.rtcConnection.close();
   }
   
-  private downloadFile = (filename: string, fileUrl: string) => {
-    const a = document.createElement('a');
-    a.href = fileUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    
-    setTimeout(() => URL.revokeObjectURL(fileUrl), 100);
+  getReceivedFileURL() {
+    return this.receivedFileUrl;
+  }
+
+  getfileMetaData() {
+    return this.fileMetaData
   }
 
   private setUpDataChannel = () => {
@@ -107,13 +108,14 @@ export class PeerConnection {
         } else if (data instanceof ArrayBuffer) {
           this.receivedBuffer.push(data);
           this.receivedChunks++;
-          if(this.receivedChunks === this.fileMetaData?.chunkcount) {
+          if(this.receivedChunks === this.fileMetaData?.chunkCount) {
             this.receivedFile = new Blob(this.receivedBuffer);
             this.receivedBuffer = [];
             this.receivedChunks = 0;
             console.log('Fully received file');
             const fileURL = URL.createObjectURL(this.receivedFile);
-            this.downloadFile(this.fileMetaData.filename, fileURL);
+            this.receivedFileUrl = fileURL;
+            this.onFileReceivedCallback();    
           }
         } else {
           console.warn('Unrecognized message');
