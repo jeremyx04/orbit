@@ -78,6 +78,17 @@ export class PeerConnection {
     this.rtcConnection.close();
   }
   
+  private downloadFile = (filename: string, fileUrl: string) => {
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    setTimeout(() => URL.revokeObjectURL(fileUrl), 100);
+  }
+
   private setUpDataChannel = () => {
     if(this.rtcDataChannel) {
       this.rtcDataChannel.binaryType = 'arraybuffer';
@@ -101,6 +112,8 @@ export class PeerConnection {
             this.receivedBuffer = [];
             this.receivedChunks = 0;
             console.log('Fully received file');
+            const fileURL = URL.createObjectURL(this.receivedFile);
+            this.downloadFile(this.fileMetaData.filename, fileURL);
           }
         } else {
           console.warn('Unrecognized message');
