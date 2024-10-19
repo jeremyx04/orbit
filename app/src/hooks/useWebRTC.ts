@@ -7,13 +7,13 @@ import { FileMetadata } from "../types/FileMetadata";
 import { FileNameAndUrl } from "../types/FileNameAndUrl"
 
 type Props = {
-  onMessageReceived: (message: string) => void;
+  avatar: string;
 }
 
-const BACKEND_URL = 'localhost:3001';
+const BACKEND_URL = 'http://localhost:3001';
 const CHUNK_SIZE = 16384;
 
-export const useWebRTC = ({ onMessageReceived } : Props) => {
+export const useWebRTC = ({ avatar  } : Props) => {
   const socketRef = useRef<Socket | undefined>(undefined);
   const localConnectionRef = useRef<PeerConnection|undefined>(undefined);
   const remoteConnectionRef = useRef<PeerConnection|undefined>(undefined);
@@ -74,17 +74,17 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     }
   };
 
-  const setHandlers = () => {
+  const setHandlers = useCallback(() => {
     if(socketRef.current) {
       socketRef.current.on('init', (status) => {
         if(status === 'peer') {
-          localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
+          localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler, avatar);
           localConnectionRef.current.initLocal();
         }
       }); 
 
       socketRef.current.on('new-peer', () => {
-        localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
+        localConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler, avatar);
         localConnectionRef.current.initLocal();
         remoteConnectionRef.current = new PeerConnection(socketRef.current!, setFileReceivedHandler);
       })
@@ -127,7 +127,7 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
         }
       });
     }
-  }
+  }, [avatar]);
 
   useEffect(() => {
     if(!socketRef.current) {
@@ -136,14 +136,11 @@ export const useWebRTC = ({ onMessageReceived } : Props) => {
     }
     
     return () => {
-      if(localConnectionRef.current) {
-        localConnectionRef.current.disconnect();
-      }
-      if(remoteConnectionRef.current) {
-        remoteConnectionRef.current.disconnect();
-      }
+      if(localConnectionRef.current) localConnectionRef.current.disconnect();
+      if(remoteConnectionRef.current) remoteConnectionRef.current.disconnect();
+      if(socketRef.current) socketRef.current.disconnect();
     }
-  }, []);
+  }, [setHandlers]);
 
   return { sendFile, fileReceived, getReceivedFileNameAndUrl, clients: remoteConnectionRef };
 }

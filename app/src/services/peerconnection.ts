@@ -1,6 +1,7 @@
 import { Socket } from "socket.io-client";
 import {v4 as uuidv4} from "uuid";
 import { FileMetadata } from "../types/FileMetadata";
+import { getAvatar } from "./avatar";
 
 const config = {
   iceServers: [
@@ -10,6 +11,7 @@ const config = {
 
 export class PeerConnection {
   id: string;
+  avatar: string;
   rtcConnection: RTCPeerConnection;
   signalingServer: Socket;
   onFileReceivedCallback: () => void;
@@ -19,9 +21,10 @@ export class PeerConnection {
   private receivedChunks = 0;
   private fileMetaData?: FileMetadata;
   private receivedFileUrl?: string;
-
-  constructor(signalingServer: Socket, onFileReceivedCallback: () => void, id?: string) {
+  
+  constructor(signalingServer: Socket, onFileReceivedCallback: () => void, id?: string, avatar?: string) {
     this.id = id ?? uuidv4();
+    this.avatar = avatar ?? getAvatar();
     this.signalingServer = signalingServer;
     this.onFileReceivedCallback = onFileReceivedCallback;
 
